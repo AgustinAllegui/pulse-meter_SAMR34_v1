@@ -12,6 +12,10 @@
 #include "EER34_spi.h"
 #include "EER34_i2c.h"
 
+// Prototipos de funciones
+
+uint8_t getBatteryLevel(const uint16_t halfVoltage);
+
 // Private variables
 
 int timer1; // Para EER34_tickCallback
@@ -149,6 +153,7 @@ void EES34_appInit(void)
 	uint8_t appEuix[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
 	uint8_t appKeyx[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
 
+	logWarning("-----------------------------------");
 	logWarning("EESAMR34");
 	logWarning("Initializing\r\n");
 
@@ -178,7 +183,22 @@ void EES34_appInit(void)
 	extintConfigure();
 
 	// Initialize adc
-	EER34_Adc_startAdc();
+	{
+		struct adc_config config_adc;
+
+		adc_get_config_defaults(&config_adc);
+#if LOG_LEVEL >= DEBUG_LEVEL
+		if (config_adc.positive_input == ADC_POSITIVE_INPUT_PIN6)
+			logDebug("ADC to battery");
+		else if (config_adc.positive_input == ADC_POSITIVE_INPUT_PIN6)
+			logDebug("ADC to pin1");
+#endif
+		config_adc.positive_input = ADC_POSITIVE_INPUT_PIN6;
+		//config_adc.positive_input = ADC_POSITIVE_INPUT_PIN8;
+
+		adc_init(&adc_instance, ADC, &config_adc);
+		adc_enable(&adc_instance);
+	}
 
 	//	// Inilialize SPI
 	EER34_configureSpiMaster(100000, SPI_DATA_ORDER_MSB, SPI_TRANSFER_MODE_0);
@@ -320,7 +340,9 @@ void EES34_appTask(void)
 	{
 		logTrace("Save count");
 		//! leer nivel de bateria.
-		//uint16_t batteryRead = EER34_Adc_digitalRead();
+		uint16_t batteryRead = EER34_Adc_digitalRead();
+		logDebug("ADC read %d", batteryRead);
+		batteryLevel = getBatteryLevel(batteryRead);
 		logInfo("Battery level %u%", batteryLevel);
 		//! si nivel de bateria baja, guardar en flash.
 		fsm = APP_FSM_PREPARE_PAYLOAD;
@@ -344,14 +366,15 @@ void EES34_appTask(void)
 			sendBuffer[1] = (char)((pulseCountToSend & 0x000000FF));
 
 			sendBuffer[5] = (char)(batteryLevel);
-			
-			#if LOG_LEVEL >= DEBUG_LEVEL
+
+#if LOG_LEVEL >= DEBUG_LEVEL
 			printf("[DEBUG] Payload to be send: [ ");
-			for(int i = 0; i<SEND_BUFFER_LENGTH; i++){
+			for (int i = 0; i < SEND_BUFFER_LENGTH; i++)
+			{
 				printf("%02X ", sendBuffer[i]);
 			}
 			printf("]\r\n");
-			#endif
+#endif
 
 			fsm = APP_FSM_TX;
 		}
@@ -403,18 +426,19 @@ void EES34_appTask(void)
 	}
 	case APP_FSM_SLEEP:
 	{
-		if(!timer1)	{
-			
+		if (!timer1)
+		{
+
 			logTrace("SLEEP");
 			//! implementar sleep
-			
+
 			// esperar 30 segundos en vez de sleep
 			//int delayInSeconds = 30;
 			//timer1 = delayInSeconds*100;
 			logInfo("Retardo de 30 seg\r\n");
-			
+
 			joinAttempts = 8;
-			
+
 			fsm = APP_FSM_JOIN;
 		}
 		break;
@@ -455,4 +479,25 @@ void EES34_appResetCallback(unsigned int rcause)
 	{
 		logWarning("Power-On Reset\r\n");
 	}
+}
+
+/**
+ * @brief Obtener el nivel de bateria a partir de la mitad del voltaje actual.
+ * 
+ * @param halfVoltage Mitad del voltaje de la bateria.
+ * @return Nivel de bateria (0 - 100)
+ */
+uint8_t getBatteryLevel(const uint16_t halfVoltage)
+{
+	const uint16_t minLevel = 3217; // medicion estimada para 3.3v
+	const uint16_t maxLevel = 4095; // medicion para 4.2v
+
+	float percentage = (halfVoltage - minLevel);
+	percentage = percentage / (maxLevel - minLevel);
+	percentage *= 100;
+	
+	if (percentage > 100)
+		percentage = 100;
+
+	return (uint8_t)percentage;
 }
