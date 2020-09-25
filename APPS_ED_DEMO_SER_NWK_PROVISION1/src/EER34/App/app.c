@@ -16,6 +16,8 @@
 #include "EER34_spi.h"
 #include "EER34_i2c.h"
 
+#define SAVE_BATTERY_LEVEL 50
+
 // Prototipos de funciones
 
 uint8_t getBatteryLevel(const uint16_t halfVoltage);
@@ -87,6 +89,7 @@ void EER34_statusCallback(EER34_status_t sts, StackRetStatus_t LoraSts)
  */
 void EER34_rxDataCallback(int port, uint8_t *data, int len)
 {
+	logTrace("Data received");
 	payloadParser(data, len);
 }
 
@@ -124,12 +127,22 @@ void EES34_exitLowPower(const uint32_t slept)
 #define IRQ_MUX MUX_PA08A_EIC_NMI
 #define IRQ_CHAN 0
 
-//void extintCallback(void)
+bool bypassSleep = false;
+bool savePulseFlag = false;
+// despertar del sleep si se presiona el boton
+void extintCallback(void)
+{
+	bypassSleep = true;
+	savePulseFlag = true;
+	PMM_Wakeup();
+}
+
 void NMI_Handler(void)
 {
 	pulseCount++;
 	extint_nmi_clear_detected(IRQ_CHAN);
 	PMM_Wakeup();
+	logTrace("Pulse");
 }
 
 
@@ -153,6 +166,24 @@ void extintConfigure(void)
 	{
 		extint_nmi_clear_detected(IRQ_CHAN);
 	}
+	
+	
+	struct extint_chan_conf bouttonConf;
+	extint_chan_get_config_defaults(&bouttonConf);
+	bouttonConf.gpio_pin = PIN_PA27;
+	bouttonConf.gpio_pin_mux = MUX_PA27A_EIC_EXTINT15;
+	bouttonConf.gpio_pin_pull = EXTINT_PULL_UP;
+	bouttonConf.detection_criteria = EXTINT_DETECT_FALLING;
+	bouttonConf.filter_input_signal = true;
+	bouttonConf.enable_async_edge_detection = false;
+	extint_chan_set_config(15, &bouttonConf);
+	extint_register_callback(extintCallback, 15, EXTINT_CALLBACK_TYPE_DETECT);
+	extint_chan_enable_callback(15, EXTINT_CALLBACK_TYPE_DETECT);
+	
+	while(extint_chan_is_detected(15)){
+		extint_chan_clear_detected(15);
+	}
+	
 }
 
 /** 
@@ -402,7 +433,8 @@ void EES34_appTask(void)
 		logInfo("Battery level %u%", batteryLevel);
 		//! si nivel de bateria baja, guardar en flash.
 		
-		if(batteryLevel < 101){
+		if(batteryLevel < SAVE_BATTERY_LEVEL || bypassSleep){
+			bypassSleep = false;
 			savePulseCount(pulseCount);
 		}
 		
@@ -498,7 +530,7 @@ void EES34_appTask(void)
 			if (EER34_sleep(timeToSleep))
 			{
 				logInfo("Slept OK, woken-up!\r\n");
-				if (timeSlept > ((period - 4)) * 1000)
+				if (timeSlept > ((period - 4)) * 1000 || bypassSleep)
 				{
 					timeSlept = 0;
 					fsm = APP_FSM_JOIN;
@@ -649,6 +681,7 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		receivedPeriod = receivedPeriod << 8;
 		receivedPeriod |= rxBuffer[4];
 
+		period = receivedPeriod;
 		if (period < 30)
 			period = 30;
 		else if (period > 4294965) // periodo mayor a (2^32)/1000

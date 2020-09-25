@@ -12,6 +12,7 @@
 #include "eeprom.h"
 #include "logMacros.h"
 
+#define DEFAULT_PERIOD 30
 
 #define PERIOD_EEPROM_PAGE 0
 #define PULSE_COUNT_FIRST_EEPROM_PAGE 2

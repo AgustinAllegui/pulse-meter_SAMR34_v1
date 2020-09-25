@@ -61,11 +61,9 @@ uint32_t getSavedPeriod(void)
 {
 	logTrace("Reading saved Period");
 	if(periodIsCorrupted){
-		logWarning("Period lost. Setting to 3600 seg");
-		//savePeriod(3600);
-		//return 3600;
-		savePeriod(30);
-		return 30;
+		logWarning("Period lost. Setting to %lu seg", DEFAULT_PERIOD);
+		savePeriod(DEFAULT_PERIOD);
+		return DEFAULT_PERIOD;
 	}
 
 	return readSinglePage(PERIOD_EEPROM_PAGE);
