@@ -322,9 +322,9 @@ int EER34_tx(EER34_txMode_t mode, int port, uint8_t *data, int len)
 #ifdef CONF_PMM_ENABLE
 static void appWakeupCallback(uint32_t sleptDuration)
 {
-	EES34_exitLowPower();
 	HAL_Radio_resources_init();
 	sio2host_init();
+	EES34_exitLowPower(sleptDuration);
 }
 #endif
 
@@ -346,14 +346,14 @@ int EER34_sleep(uint32_t time)
 	}
 	if (true == LORAWAN_ReadyToSleep(deviceResetsForWakeup))
 	{
+		EES34_enterLowPower();
 		sio2host_deinit();
 		HAL_RadioDeInit();
-		EES34_enterLowPower();
 		if (PMM_SLEEP_REQ_DENIED == PMM_Sleep(&sleepReq))
 		{
-			EES34_exitLowPower();
 			HAL_Radio_resources_init();
 			sio2host_init();
+			EES34_exitLowPower(0);
 			return 0;
 		}
 		return 1;
@@ -567,6 +567,6 @@ void  __attribute__((weak)) EES34_enterLowPower(void)
  *  de bajo consumo, volviendo a configurar y/o encender los recursos
  *  que deinicializo y/o apago al entrar en el modo de bajo consumo.
  */
-void  __attribute__((weak)) EES34_exitLowPower(void)
+void  __attribute__((weak)) EES34_exitLowPower(const uint32_t slept)
 {
 }

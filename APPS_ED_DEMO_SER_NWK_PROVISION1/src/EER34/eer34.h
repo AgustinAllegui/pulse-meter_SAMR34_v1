@@ -72,7 +72,7 @@ void EES34_appInit(void);
 void EES34_appTask(void);
 void EES34_appResetCallback(unsigned int rcause);
 void EES34_enterLowPower(void);
-void EES34_exitLowPower(void);
+void EES34_exitLowPower(const uint32_t slept);
 int EER34_getchar(void);
 void EER34_getLineInit(char *buffer, int size);
 int EER34_getLine(void);

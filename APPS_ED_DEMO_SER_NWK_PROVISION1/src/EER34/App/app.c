@@ -7,6 +7,8 @@
 #include "..\eer34.h"
 #include "inc/logMacros.h"
 
+#include "pmm.h"
+
 #include "EER34_gpio.h"
 #include "EER34_adc.h"
 #include "EER34_spi.h"
@@ -15,15 +17,18 @@
 // Prototipos de funciones
 
 uint8_t getBatteryLevel(const uint16_t halfVoltage);
+void usbParser(const int len);
+void payloadParser(uint8_t *rxBuffer, const int len);
 
 // Private variables
 
-int timer1; // Para EER34_tickCallback
+uint32_t timer1; // Para EER34_tickCallback
 
-#define SEND_BUFFER_LENGTH 6				  // (1 (mnemonico) + 4 (pulseCount) + 1 (% bateria))
+#define SEND_BUFFER_LENGTH 6				  // (1 (mnemonico) + 4 (pulseCount)  + 1 (% bateria))
 unsigned char sendBuffer[SEND_BUFFER_LENGTH]; // buffer para enviar
 volatile uint32_t pulseCount = 0;
 uint8_t batteryLevel = 100;
+uint32_t period = 30;
 
 static enum {
 	APP_FSM_INIT = 0,
@@ -78,12 +83,7 @@ void EER34_statusCallback(EER34_status_t sts, StackRetStatus_t LoraSts)
  */
 void EER34_rxDataCallback(int port, uint8_t *data, int len)
 {
-	/**	//! Parsear datos recibidos
-	 * Tiempo entre transmisiones
-	 * Hora actual
-	 * 
-	 * 
-	 */
+	payloadParser(data, len);
 }
 
 /** 
@@ -105,39 +105,49 @@ void EES34_enterLowPower(void)
  *  de bajo consumo, volviendo a configurar y/o encender los recursos
  *  que deinicializo y/o apago al entrar en el modo de bajo consumo.
  */
-void EES34_exitLowPower(void)
+
+uint32_t timeSlept = 0;
+void EES34_exitLowPower(const uint32_t slept)
 {
 	// Vuelve a enceder el tick que lo apago al entrar en bajo consumo
 	EER34_tickStart(10);
+	logInfo("Time slept: %lu ms", slept);
+	timeSlept += slept;
+	logDebug("Time slept in total: %lu ms", timeSlept);
 }
 
-void extintCallback(void)
+#define IRQ_PIN PIN_PA08
+#define IRQ_MUX MUX_PA08A_EIC_NMI
+#define IRQ_CHAN 0
+
+//void extintCallback(void)
+void NMI_Handler(void)
 {
 	pulseCount++;
+	extint_nmi_clear_detected(IRQ_CHAN);
+	PMM_Wakeup();
 }
 
-#define IRQ_PIN PIN_PA27
-#define IRQ_MUX MUX_PA27A_EIC_EXTINT15
-#define IRQ_CHAN 15
+
 
 void extintConfigure(void)
 {
 	logTrace("Inicializando Interrupciones\r\n");
-	struct extint_chan_conf chanConf;
-	extint_chan_get_config_defaults(&chanConf);
+	struct extint_nmi_conf chanConf;
+	extint_nmi_get_config_defaults(&chanConf);
 	chanConf.gpio_pin = IRQ_PIN;
 	chanConf.gpio_pin_mux = IRQ_MUX;
 	chanConf.gpio_pin_pull = EXTINT_PULL_UP;
 	chanConf.detection_criteria = EXTINT_DETECT_FALLING;
 	chanConf.filter_input_signal = true;
 	chanConf.enable_async_edge_detection = false;
-	extint_chan_set_config(IRQ_CHAN, &chanConf);
-	extint_register_callback(extintCallback, IRQ_CHAN, EXTINT_CALLBACK_TYPE_DETECT);
+	extint_nmi_set_config(IRQ_CHAN, &chanConf);
+	//extint_register_callback(extintCallback, IRQ_CHAN, EXTINT_CALLBACK_TYPE_DETECT);
 	extint_chan_enable_callback(IRQ_CHAN, EXTINT_CALLBACK_TYPE_DETECT);
 
-	while (extint_chan_is_detected(IRQ_CHAN))
+	while (extint_nmi_is_detected(IRQ_CHAN))
 	{
-		extint_chan_clear_detected(IRQ_CHAN);
+		extint_nmi_clear_detected(IRQ_CHAN);
 	}
 }
 
@@ -149,16 +159,34 @@ void EES34_appInit(void)
 {
 	static volatile int res;
 
-	uint8_t devEuix[] = {0xde, 0xaf, 0xfa, 0xce, 0xde, 0xaf, 0x55, 0x20};
+	uint8_t devEuix[] = {0x00, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02};
 	uint8_t appEuix[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
 	uint8_t appKeyx[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
+	uint8_t frequencySubBand = 2;
 
 	logWarning("-----------------------------------");
 	logWarning("EESAMR34");
 	logWarning("Initializing\r\n");
 
+	logInfo("Dev EUI: %02X %02X %02X %02X %02X %02X %02X %02X",
+			devEuix[0], devEuix[1], devEuix[2], devEuix[3],
+			devEuix[4], devEuix[5], devEuix[6], devEuix[7]);
+
+	logInfo("App EUI: %02X %02X %02X %02X %02X %02X %02X %02X ",
+			appEuix[0], appEuix[1], appEuix[2], appEuix[3],
+			appEuix[4], appEuix[5], appEuix[6], appEuix[7]);
+
+	logInfo("App KEY: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+			appKeyx[0], appKeyx[1], appKeyx[2], appKeyx[3],
+			appKeyx[4], appKeyx[5], appKeyx[6], appKeyx[7],
+			appKeyx[8], appKeyx[9], appKeyx[10], appKeyx[11],
+			appKeyx[12], appKeyx[13], appKeyx[14], appKeyx[15]);
+
+	logInfo("Frequency Sub Band: %u", frequencySubBand);
+
 	// Este seteo debe ir primero porque inicia el stack LoRaWan
-	res = EER34_setBand(ISM_AU915, 2);
+
+	res = EER34_setBand(ISM_AU915, frequencySubBand);
 
 	// Estos seteos pueden ir en cualquier orden pero siempre
 	// despues de setear la banda (sino dan error)
@@ -181,6 +209,8 @@ void EES34_appInit(void)
 
 	// EER34_Gpio_pinMode ( PIN_PA27 , INPUT  );			// SW2 with external pull-up
 	extintConfigure();
+	// recover count
+	pulseCount = 0;
 
 	// Initialize adc
 	{
@@ -284,8 +314,11 @@ void EES34_appTask(void)
 	static uint8_t txAttemptCount = 0;
 
 	// Procesar datos recibidos por USB
-	if (EER34_getLine())
-		logInfo("You typed: %s\r\n", line);
+	{
+		int usbLen = EER34_getLine();
+		if (usbLen)
+			usbParser(usbLen);
+	}
 
 	//--------------------------------------------------------
 	// Manejo de maquina de estados.
@@ -342,7 +375,9 @@ void EES34_appTask(void)
 		//! leer nivel de bateria.
 		uint16_t batteryRead = EER34_Adc_digitalRead();
 		logDebug("ADC read %d", batteryRead);
+
 		batteryLevel = getBatteryLevel(batteryRead);
+		//batteryLevel = pulseCount%101;
 		logInfo("Battery level %u%", batteryLevel);
 		//! si nivel de bateria baja, guardar en flash.
 		fsm = APP_FSM_PREPARE_PAYLOAD;
@@ -380,7 +415,7 @@ void EES34_appTask(void)
 		}
 		else
 		{
-			timer1 = 3000;
+			timer1 = 50;
 			fsm = APP_FSM_SLEEP;
 		}
 		break;
@@ -420,7 +455,7 @@ void EES34_appTask(void)
 	{
 		logTrace("TX DONE");
 		txAttemptCount = 0;
-		timer1 = 3000;
+		timer1 = 50;
 		fsm = APP_FSM_SLEEP;
 		break;
 	}
@@ -430,16 +465,31 @@ void EES34_appTask(void)
 		{
 
 			logTrace("SLEEP");
-			//! implementar sleep
+			// calcular tiempo a dormir
 
+			uint32_t timeToSleep = (period * 1000) - timeSlept;
+			logInfo("About to sleep %lu ms", timeToSleep);
+			if (EER34_sleep(timeToSleep))
+			{
+				logInfo("Slept OK, woken-up!\r\n");
+				if (timeSlept > ((period - 4)) * 1000)
+				{
+					timeSlept = 0;
+					fsm = APP_FSM_JOIN;
+				}
+			}
+			else
+			{
+				logError("Sleep failed\r\n");
+				timer1 = 50;
+			}
 			// esperar 30 segundos en vez de sleep
 			//int delayInSeconds = 30;
 			//timer1 = delayInSeconds*100;
-			logInfo("Retardo de 30 seg\r\n");
+			//logDebug("Simulando sleep");
+			//logInfo("Retardo de %u seg\r\n", period);
 
 			joinAttempts = 8;
-
-			fsm = APP_FSM_JOIN;
 		}
 		break;
 	}
@@ -495,9 +545,106 @@ uint8_t getBatteryLevel(const uint16_t halfVoltage)
 	float percentage = (halfVoltage - minLevel);
 	percentage = percentage / (maxLevel - minLevel);
 	percentage *= 100;
-	
+
 	if (percentage > 100)
 		percentage = 100;
 
 	return (uint8_t)percentage;
+}
+
+char char2hex(const char caracter)
+{
+	if (caracter >= '0' && caracter <= '9')
+		return caracter - '0';
+	else if (caracter >= 'A' && caracter <= 'F')
+		return caracter + 10 - 'A';
+	else if (caracter >= 'a' && caracter <= 'f')
+		return caracter + 10 - 'a';
+	else
+		return 0;
+}
+
+void usbParser(const int len)
+{
+	logInfo("Send through USB: %s", line);
+	switch (line[0])
+	{
+	case 'L':
+	{
+		char rxBuffer[(len - 1) / 2];
+		for (int i = 1; i < len - 1; i += 2)
+		{
+			char c = char2hex(line[i]) << 4;
+			c |= char2hex(line[i + 1]);
+			logDebug("i: %2i, c: %02X", i, c);
+			rxBuffer[(i - 1) / 2] = c;
+		}
+		payloadParser(rxBuffer, (len - 1) / 2);
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+void payloadParser(uint8_t *rxBuffer, const int len)
+{
+	/**	//! Parsear datos recibidos
+	 * [x] Tiempo entre transmisiones
+	 * [ ] ?Hora actual
+	 * [x] Contador de pulsos manual
+	 * [x] Pulsos por unidad
+	 */
+
+	logTrace("payloadParser");
+#if LOG_LEVEL >= INFO_LEVEL
+	printf("[INFO] Recived data: ");
+	for (int i = 0; i < len; i++)
+	{
+		printf("%02X ", rxBuffer[i]);
+	}
+	printf("\r\n");
+#endif
+
+	switch (rxBuffer[0])
+	{
+	case 'T':
+	{
+		if (len < 3)
+			break;
+		logInfo("Changing period");
+		uint32_t receivedPeriod = rxBuffer[1];
+		receivedPeriod = receivedPeriod << 8;
+		receivedPeriod |= rxBuffer[2];
+		receivedPeriod = receivedPeriod << 8;
+		receivedPeriod |= rxBuffer[3];
+		receivedPeriod = receivedPeriod << 8;
+		receivedPeriod |= rxBuffer[4];
+
+		if (period < 30)
+			period = 30;
+		else if (period > 4294965) // periodo mayor a (2^32)/1000
+			period = 42949671;
+		logDebug("Period: %lu seconds", period);
+		break;
+	}
+	case 'P':
+	{
+		if (len < 5)
+			break;
+		logInfo("Manualy setting pulse count");
+		uint32_t receivedPulses = rxBuffer[1];
+		receivedPulses = receivedPulses << 8;
+		receivedPulses |= rxBuffer[2];
+		receivedPulses = receivedPulses << 8;
+		receivedPulses |= rxBuffer[3];
+		receivedPulses = receivedPulses << 8;
+		receivedPulses |= rxBuffer[4];
+		logDebug("Pulse count: %lu", receivedPulses);
+		pulseCount = receivedPulses;
+		break;
+	}
+	default:
+		break;
+	}
 }
