@@ -66,6 +66,9 @@
 // From module: Delay routines
 #include <delay.h>
 
+// From module: EEPROM Emulator Service
+#include <eeprom.h>
+
 // From module: EXTINT - External Interrupt (Callback APIs)
 #include <extint.h>
 #include <extint_callback.h>

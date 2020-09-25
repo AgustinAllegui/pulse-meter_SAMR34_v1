@@ -6,6 +6,7 @@
  */
 #include "..\eer34.h"
 #include "inc/logMacros.h"
+#include "inc/EER34_nvm.h"
 
 #include "pmm.h"
 
@@ -246,6 +247,19 @@ void EES34_appInit(void)
 
 	EER34_getLineInit(line, sizeof(line));
 	
+	
+	//============================================================
+	// confiure EEPROM
+	logTrace("Initializing EEPROM");
+	configure_eeprom();
+
+	period = getSavedPeriod();
+	pulseCount = getSavedPulseCount();
+	
+	logInfo("Period: %lu", period);
+	logInfo("Pulses counted: %lu", pulseCount);
+
+	
 }
 
 /** 
@@ -387,6 +401,11 @@ void EES34_appTask(void)
 		//batteryLevel = pulseCount%101;
 		logInfo("Battery level %u%", batteryLevel);
 		//! si nivel de bateria baja, guardar en flash.
+		
+		if(batteryLevel < 101){
+			savePulseCount(pulseCount);
+		}
+		
 		fsm = APP_FSM_PREPARE_PAYLOAD;
 		break;
 	}
@@ -635,6 +654,8 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		else if (period > 4294965) // periodo mayor a (2^32)/1000
 			period = 42949671;
 		logDebug("Period: %lu seconds", period);
+		
+		savePeriod(period);
 		break;
 	}
 	case 'P':
@@ -650,6 +671,9 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		receivedPulses = receivedPulses << 8;
 		receivedPulses |= rxBuffer[4];
 		logDebug("Pulse count: %lu", receivedPulses);
+		
+		clearPulseCount();
+		savePulseCount(receivedPulses);
 		pulseCount = receivedPulses;
 		break;
 	}
