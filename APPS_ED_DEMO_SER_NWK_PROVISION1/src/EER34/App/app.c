@@ -9,6 +9,7 @@
 
 #include "pmm.h"
 
+
 #include "EER34_gpio.h"
 #include "EER34_adc.h"
 #include "EER34_spi.h"
@@ -20,6 +21,7 @@ uint8_t getBatteryLevel(const uint16_t halfVoltage);
 void usbParser(const int len);
 void payloadParser(uint8_t *rxBuffer, const int len);
 
+
 // Private variables
 
 uint32_t timer1; // Para EER34_tickCallback
@@ -29,6 +31,7 @@ unsigned char sendBuffer[SEND_BUFFER_LENGTH]; // buffer para enviar
 volatile uint32_t pulseCount = 0;
 uint8_t batteryLevel = 100;
 uint32_t period = 30;
+//uint32_t period = 3600;
 
 static enum {
 	APP_FSM_INIT = 0,
@@ -157,6 +160,7 @@ void extintConfigure(void)
 
 void EES34_appInit(void)
 {
+
 	static volatile int res;
 
 	uint8_t devEuix[] = {0x00, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02};
@@ -225,6 +229,8 @@ void EES34_appInit(void)
 #endif
 		config_adc.positive_input = ADC_POSITIVE_INPUT_PIN6;
 		//config_adc.positive_input = ADC_POSITIVE_INPUT_PIN8;
+		
+		config_adc.reference = ADC_REFERENCE_INTVCC2;
 
 		adc_init(&adc_instance, ADC, &config_adc);
 		adc_enable(&adc_instance);
@@ -239,6 +245,7 @@ void EES34_appInit(void)
 	//============================================================
 
 	EER34_getLineInit(line, sizeof(line));
+	
 }
 
 /** 
@@ -539,8 +546,8 @@ void EES34_appResetCallback(unsigned int rcause)
  */
 uint8_t getBatteryLevel(const uint16_t halfVoltage)
 {
-	const uint16_t minLevel = 3217; // medicion estimada para 3.3v
-	const uint16_t maxLevel = 4095; // medicion para 4.2v
+	const uint16_t minLevel = 2000; // medicion para 3.3v
+	const uint16_t maxLevel = 2500; // medicion para 4.2v
 
 	float percentage = (halfVoltage - minLevel);
 	percentage = percentage / (maxLevel - minLevel);
@@ -548,6 +555,8 @@ uint8_t getBatteryLevel(const uint16_t halfVoltage)
 
 	if (percentage > 100)
 		percentage = 100;
+	else if (percentage < 0)
+		percentage = 0;
 
 	return (uint8_t)percentage;
 }
@@ -648,3 +657,7 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		break;
 	}
 }
+
+
+
+
