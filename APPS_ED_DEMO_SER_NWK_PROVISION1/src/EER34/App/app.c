@@ -195,10 +195,10 @@ void EES34_appInit(void)
 
 	static volatile int res;
 
-	uint8_t devEuix[] = {0x00, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02};
+	uint8_t devEuix[] = {0x00, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
 	uint8_t appEuix[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
 	uint8_t appKeyx[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
-	uint8_t frequencySubBand = 2;
+	uint8_t frequencySubBand = 1;
 
 	logWarning("-----------------------------------");
 	logWarning("EESAMR34");
@@ -269,10 +269,10 @@ void EES34_appInit(void)
 	}
 
 	//	// Inilialize SPI
-	EER34_configureSpiMaster(100000, SPI_DATA_ORDER_MSB, SPI_TRANSFER_MODE_0);
+	//EER34_configureSpiMaster(100000, SPI_DATA_ORDER_MSB, SPI_TRANSFER_MODE_0);
 
 	// Initialize I2C
-	EER34_I2C_begin();
+	//EER34_I2C_begin();
 
 	//============================================================
 
@@ -302,58 +302,58 @@ void EER34_tickCallback(void)
 		timer1--;
 }
 
-static void ToggleLed2(void)
-{
-	static bool led2 = 0;
+//static void ToggleLed2(void)
+//{
+	//static bool led2 = 0;
+//
+	//led2 = led2 ^ 1;
+//
+	//if (led2)
+		//EER34_Gpio_digitalWrite(PIN_PA14, true);
+	//else
+		//EER34_Gpio_digitalWrite(PIN_PA14, false);
+//}
 
-	led2 = led2 ^ 1;
+//static void ToggleLed5(void)
+//{
+	//static bool led5 = 0;
+//
+	//led5 = led5 ^ 1;
+//
+	//if (led5)
+		//EER34_Gpio_digitalWrite(PIN_PA07, true);
+	//else
+		//EER34_Gpio_digitalWrite(PIN_PA07, false);
+//}
 
-	if (led2)
-		EER34_Gpio_digitalWrite(PIN_PA14, true);
-	else
-		EER34_Gpio_digitalWrite(PIN_PA14, false);
-}
+//static void TestSPI(void)
+//{
+	//uint8_t buffer_spi_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
+	//uint8_t buffer_spi_rx[20] = {0x00};
+//
+	//memcpy_ram2ram(buffer_spi_rx, buffer_spi_tx, 20);
+//
+	//EER34_spiStartTransaction();
+	//EER34_spiTransferBuffer(buffer_spi_tx, sizeof(buffer_spi_tx));
+	//EER34_spiEndTransaction();
+//
+	//if (memcmp_ram2ram(buffer_spi_tx, buffer_spi_rx, 20) == 0)
+	//{
+		//ToggleLed5();
+	//}
+//}
 
-static void ToggleLed5(void)
-{
-	static bool led5 = 0;
-
-	led5 = led5 ^ 1;
-
-	if (led5)
-		EER34_Gpio_digitalWrite(PIN_PA07, true);
-	else
-		EER34_Gpio_digitalWrite(PIN_PA07, false);
-}
-
-static void TestSPI(void)
-{
-	uint8_t buffer_spi_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
-	uint8_t buffer_spi_rx[20] = {0x00};
-
-	memcpy_ram2ram(buffer_spi_rx, buffer_spi_tx, 20);
-
-	EER34_spiStartTransaction();
-	EER34_spiTransferBuffer(buffer_spi_tx, sizeof(buffer_spi_tx));
-	EER34_spiEndTransaction();
-
-	if (memcmp_ram2ram(buffer_spi_tx, buffer_spi_rx, 20) == 0)
-	{
-		ToggleLed5();
-	}
-}
-
-void TestI2C(void)
-{
-#define SLAVE_ADDRESS 0x28
-
-	uint8_t buffer_i2c_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
-	uint8_t buffer_i2c_rx[20] = {0};
-
-	EER34_I2C_Write(SLAVE_ADDRESS, buffer_i2c_tx, 20);
-
-	EER34_I2C_Read(SLAVE_ADDRESS, buffer_i2c_rx, 20);
-}
+//void TestI2C(void)
+//{
+//#define SLAVE_ADDRESS 0x28
+//
+	//uint8_t buffer_i2c_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
+	//uint8_t buffer_i2c_rx[20] = {0};
+//
+	//EER34_I2C_Write(SLAVE_ADDRESS, buffer_i2c_tx, 20);
+//
+	//EER34_I2C_Read(SLAVE_ADDRESS, buffer_i2c_rx, 20);
+//}
 
 /** 
  *	Task de la aplicacion
@@ -425,8 +425,19 @@ void EES34_appTask(void)
 	{
 		logTrace("Save count");
 		//! leer nivel de bateria.
-		uint16_t batteryRead = EER34_Adc_digitalRead();
-		logDebug("ADC read %d", batteryRead);
+		//uint16_t batteryRead = EER34_Adc_digitalRead();
+		logDebug("Reading ADC 8 times");
+		uint16_t batteryRead = 0;
+		for(int i = 0; i<8; i++){
+			batteryRead += EER34_Adc_digitalRead();
+			if(i<2){
+				batteryRead = 0;
+			}
+		}
+		logDebug("ADC read x6 %u", batteryRead);
+		batteryRead = batteryRead/6;
+		
+		logDebug("ADC read %u", batteryRead);
 
 		batteryLevel = getBatteryLevel(batteryRead);
 		//batteryLevel = pulseCount%101;

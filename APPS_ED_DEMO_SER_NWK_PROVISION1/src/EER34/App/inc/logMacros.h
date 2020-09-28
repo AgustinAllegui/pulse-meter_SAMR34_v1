@@ -34,7 +34,7 @@
  * DEBUG_LEVEL
  * TRACE_LEVEL
  */
-#define LOG_LEVEL TRACE_LEVEL
+#define LOG_LEVEL INFO_LEVEL
 
 //------------------------------------------------
 // Definiciones de los macros de log
