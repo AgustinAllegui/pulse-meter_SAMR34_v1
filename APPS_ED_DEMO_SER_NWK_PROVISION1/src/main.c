@@ -190,7 +190,7 @@ static void driver_init(void)
 #endif
 #if (ENABLE_PDS == 1)
     /* PDS Module Init */
-    PDS_Init();
+    //PDS_Init();
 #endif
 }
 

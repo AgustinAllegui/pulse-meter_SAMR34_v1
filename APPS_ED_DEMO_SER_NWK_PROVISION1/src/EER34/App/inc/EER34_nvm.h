@@ -12,7 +12,8 @@
 #include "eeprom.h"
 #include "logMacros.h"
 
-#define DEFAULT_PERIOD 1800 // 30 minutos
+//#define DEFAULT_PERIOD 1800 // 30 minutos
+#define DEFAULT_PERIOD 60 // 60 segundos
 
 #define PERIOD_EEPROM_PAGE 0
 #define PULSE_COUNT_FIRST_EEPROM_PAGE 2

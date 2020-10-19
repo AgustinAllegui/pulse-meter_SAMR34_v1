@@ -21,6 +21,7 @@ struct adc_module adc_instance;
 
 // Prototipes
 void		EER34_Adc_startAdc		( void );
+void		EER34_Adc_disableAdc	( void );
 uint16_t	EER34_Adc_digitalRead	( void );
 
 #endif /* ADC_H_ */

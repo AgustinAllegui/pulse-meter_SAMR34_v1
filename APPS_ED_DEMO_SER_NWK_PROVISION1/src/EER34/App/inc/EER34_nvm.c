@@ -156,7 +156,7 @@ uint32_t readSinglePage(const uint8_t page)
 	uint32_t storagedData = ((uint32_t)page_data[0] << 24) | ((uint32_t)page_data[1] << 16) | ((uint32_t)page_data[2] << 8) | (uint32_t)page_data[3];
 	
 	
-	logDebug("Read value: %lu", storagedData);
+	logDebug("Read value: %lu", storagedData == 0xFFFFFFFF ? 0 : storagedData);
 	
 	return storagedData == 0xFFFFFFFF ? 0 : storagedData;
 }

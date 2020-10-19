@@ -10,7 +10,6 @@
 
 #include "pmm.h"
 
-
 #include "EER34_gpio.h"
 #include "EER34_adc.h"
 #include "EER34_spi.h"
@@ -23,7 +22,6 @@
 uint8_t getBatteryLevel(const uint16_t halfVoltage);
 void usbParser(const int len);
 void payloadParser(uint8_t *rxBuffer, const int len);
-
 
 // Private variables
 
@@ -103,6 +101,7 @@ void EES34_enterLowPower(void)
 {
 	// Hay que detener el tick sino no entra en bajo consumo
 	EER34_tickStop();
+	
 }
 
 /** 
@@ -117,7 +116,7 @@ uint32_t timeSlept = 0;
 void EES34_exitLowPower(const uint32_t slept)
 {
 	// Vuelve a enceder el tick que lo apago al entrar en bajo consumo
-	EER34_tickStart(10);
+		EER34_tickStart(10);
 	logInfo("Time slept: %lu ms", slept);
 	timeSlept += slept;
 	logDebug("Time slept in total: %lu ms", timeSlept);
@@ -145,8 +144,6 @@ void NMI_Handler(void)
 	logTrace("Pulse");
 }
 
-
-
 void extintConfigure(void)
 {
 	logTrace("Inicializando Interrupciones\r\n");
@@ -166,8 +163,7 @@ void extintConfigure(void)
 	{
 		extint_nmi_clear_detected(IRQ_CHAN);
 	}
-	
-	
+
 	struct extint_chan_conf bouttonConf;
 	extint_chan_get_config_defaults(&bouttonConf);
 	bouttonConf.gpio_pin = PIN_PA27;
@@ -179,11 +175,42 @@ void extintConfigure(void)
 	extint_chan_set_config(15, &bouttonConf);
 	extint_register_callback(extintCallback, 15, EXTINT_CALLBACK_TYPE_DETECT);
 	extint_chan_enable_callback(15, EXTINT_CALLBACK_TYPE_DETECT);
-	
-	while(extint_chan_is_detected(15)){
+
+	while (extint_chan_is_detected(15))
+	{
 		extint_chan_clear_detected(15);
 	}
-	
+}
+
+/**
+ * \brief Setect OSC16M as main clock source.
+ */
+static void set_low_active_power(void)
+{
+	struct system_gclk_gen_config gclk_conf;
+	struct system_clock_source_osc16m_config osc16m_conf;
+
+	/* Switch to new frequency selection and enable OSC16M */
+	system_clock_source_osc16m_get_config_defaults(&osc16m_conf);
+	osc16m_conf.fsel = CONF_CLOCK_OSC16M_FREQ_SEL;
+	osc16m_conf.on_demand = 0;
+	osc16m_conf.run_in_standby = CONF_CLOCK_OSC16M_RUN_IN_STANDBY;
+	system_clock_source_osc16m_set_config(&osc16m_conf);
+	system_clock_source_enable(SYSTEM_CLOCK_SOURCE_OSC16M);
+	while(!system_clock_source_is_ready(SYSTEM_CLOCK_SOURCE_OSC16M));
+
+	/* Select OSC16M as mainclock */
+	system_gclk_gen_get_config_defaults(&gclk_conf);
+	gclk_conf.source_clock = SYSTEM_CLOCK_SOURCE_OSC16M;
+	system_gclk_gen_set_config(GCLK_GENERATOR_0, &gclk_conf);
+	if (CONF_CLOCK_OSC16M_ON_DEMAND) {
+		OSCCTRL->OSC16MCTRL.reg |= OSCCTRL_OSC16MCTRL_ONDEMAND;
+	}
+
+	system_clock_source_disable(SYSTEM_CLOCK_SOURCE_DFLL);
+	system_gclk_chan_disable(OSCCTRL_GCLK_ID_DFLL48);
+	system_gclk_gen_disable(GCLK_GENERATOR_1);
+	system_switch_performance_level(SYSTEM_PERFORMANCE_LEVEL_0);
 }
 
 /** 
@@ -193,12 +220,17 @@ void extintConfigure(void)
 void EES34_appInit(void)
 {
 
+	// /* Scaling down clock frequency and then Scaling down the performance level */
+	set_low_active_power();
+
+	
+
 	static volatile int res;
 
-	uint8_t devEuix[] = {0x00, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
+	uint8_t devEuix[] = {0x00, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02};
 	uint8_t appEuix[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
 	uint8_t appKeyx[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
-	uint8_t frequencySubBand = 1;
+	uint8_t frequencySubBand = 2;
 
 	logWarning("-----------------------------------");
 	logWarning("EESAMR34");
@@ -240,8 +272,11 @@ void EES34_appInit(void)
 	//============================================================
 	// Initialize pins
 
-	EER34_Gpio_pinMode(PIN_PA14, OUTPUT); // LED 2
-	EER34_Gpio_pinMode(PIN_PA07, OUTPUT); // LED 5
+	//EER34_Gpio_pinMode(PIN_PA14, OUTPUT); // LED 2
+	//EER34_Gpio_pinMode(PIN_PA07, OUTPUT); // LED 5
+	//#if LOG_LEVEL >= DEBUG_LEVEL
+	//EER34_Gpio_digitalWrite(PIN_PA14, true);
+	//#endif
 
 	// EER34_Gpio_pinMode ( PIN_PA27 , INPUT  );			// SW2 with external pull-up
 	extintConfigure();
@@ -249,24 +284,7 @@ void EES34_appInit(void)
 	pulseCount = 0;
 
 	// Initialize adc
-	{
-		struct adc_config config_adc;
-
-		adc_get_config_defaults(&config_adc);
-#if LOG_LEVEL >= DEBUG_LEVEL
-		if (config_adc.positive_input == ADC_POSITIVE_INPUT_PIN6)
-			logDebug("ADC to battery");
-		else if (config_adc.positive_input == ADC_POSITIVE_INPUT_PIN6)
-			logDebug("ADC to pin1");
-#endif
-		config_adc.positive_input = ADC_POSITIVE_INPUT_PIN6;
-		//config_adc.positive_input = ADC_POSITIVE_INPUT_PIN8;
-		
-		config_adc.reference = ADC_REFERENCE_INTVCC2;
-
-		adc_init(&adc_instance, ADC, &config_adc);
-		adc_enable(&adc_instance);
-	}
+	//EER34_Adc_startAdc();
 
 	//	// Inilialize SPI
 	//EER34_configureSpiMaster(100000, SPI_DATA_ORDER_MSB, SPI_TRANSFER_MODE_0);
@@ -277,8 +295,7 @@ void EES34_appInit(void)
 	//============================================================
 
 	EER34_getLineInit(line, sizeof(line));
-	
-	
+
 	//============================================================
 	// confiure EEPROM
 	logTrace("Initializing EEPROM");
@@ -286,11 +303,9 @@ void EES34_appInit(void)
 
 	period = getSavedPeriod();
 	pulseCount = getSavedPulseCount();
-	
+
 	logInfo("Period: %lu", period);
 	logInfo("Pulses counted: %lu", pulseCount);
-
-	
 }
 
 /** 
@@ -304,55 +319,55 @@ void EER34_tickCallback(void)
 
 //static void ToggleLed2(void)
 //{
-	//static bool led2 = 0;
+//static bool led2 = 0;
 //
-	//led2 = led2 ^ 1;
+//led2 = led2 ^ 1;
 //
-	//if (led2)
-		//EER34_Gpio_digitalWrite(PIN_PA14, true);
-	//else
-		//EER34_Gpio_digitalWrite(PIN_PA14, false);
+//if (led2)
+//EER34_Gpio_digitalWrite(PIN_PA14, true);
+//else
+//EER34_Gpio_digitalWrite(PIN_PA14, false);
 //}
 
 //static void ToggleLed5(void)
 //{
-	//static bool led5 = 0;
+//static bool led5 = 0;
 //
-	//led5 = led5 ^ 1;
+//led5 = led5 ^ 1;
 //
-	//if (led5)
-		//EER34_Gpio_digitalWrite(PIN_PA07, true);
-	//else
-		//EER34_Gpio_digitalWrite(PIN_PA07, false);
+//if (led5)
+//EER34_Gpio_digitalWrite(PIN_PA07, true);
+//else
+//EER34_Gpio_digitalWrite(PIN_PA07, false);
 //}
 
 //static void TestSPI(void)
 //{
-	//uint8_t buffer_spi_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
-	//uint8_t buffer_spi_rx[20] = {0x00};
+//uint8_t buffer_spi_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
+//uint8_t buffer_spi_rx[20] = {0x00};
 //
-	//memcpy_ram2ram(buffer_spi_rx, buffer_spi_tx, 20);
+//memcpy_ram2ram(buffer_spi_rx, buffer_spi_tx, 20);
 //
-	//EER34_spiStartTransaction();
-	//EER34_spiTransferBuffer(buffer_spi_tx, sizeof(buffer_spi_tx));
-	//EER34_spiEndTransaction();
+//EER34_spiStartTransaction();
+//EER34_spiTransferBuffer(buffer_spi_tx, sizeof(buffer_spi_tx));
+//EER34_spiEndTransaction();
 //
-	//if (memcmp_ram2ram(buffer_spi_tx, buffer_spi_rx, 20) == 0)
-	//{
-		//ToggleLed5();
-	//}
+//if (memcmp_ram2ram(buffer_spi_tx, buffer_spi_rx, 20) == 0)
+//{
+//ToggleLed5();
+//}
 //}
 
 //void TestI2C(void)
 //{
 //#define SLAVE_ADDRESS 0x28
 //
-	//uint8_t buffer_i2c_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
-	//uint8_t buffer_i2c_rx[20] = {0};
+//uint8_t buffer_i2c_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
+//uint8_t buffer_i2c_rx[20] = {0};
 //
-	//EER34_I2C_Write(SLAVE_ADDRESS, buffer_i2c_tx, 20);
+//EER34_I2C_Write(SLAVE_ADDRESS, buffer_i2c_tx, 20);
 //
-	//EER34_I2C_Read(SLAVE_ADDRESS, buffer_i2c_rx, 20);
+//EER34_I2C_Read(SLAVE_ADDRESS, buffer_i2c_rx, 20);
 //}
 
 /** 
@@ -416,8 +431,9 @@ void EES34_appTask(void)
 	}
 	case APP_FSM_JOIN_OK:
 	{
-		logTrace("Join ok");
+		logInfo("Join ok");
 		isJoined = true;
+		//EER34_Gpio_digitalWrite(PIN_PA14, false);
 		fsm = APP_FSM_SAVE_COUNT;
 		break;
 	}
@@ -427,28 +443,38 @@ void EES34_appTask(void)
 		//! leer nivel de bateria.
 		//uint16_t batteryRead = EER34_Adc_digitalRead();
 		logDebug("Reading ADC 8 times");
+
+		// Initialize adc
+		logInfo("Initializing ADC");
+		EER34_Adc_startAdc();
+
 		uint16_t batteryRead = 0;
-		for(int i = 0; i<8; i++){
+		for (int i = 0; i < 8; i++)
+		{
 			batteryRead += EER34_Adc_digitalRead();
-			if(i<2){
+			if (i < 2)
+			{
 				batteryRead = 0;
 			}
 		}
 		logDebug("ADC read x6 %u", batteryRead);
-		batteryRead = batteryRead/6;
-		
+		logInfo("Deinitializing ADC");
+		EER34_Adc_disableAdc();
+		batteryRead = batteryRead / 6;
+
 		logDebug("ADC read %u", batteryRead);
 
 		batteryLevel = getBatteryLevel(batteryRead);
 		//batteryLevel = pulseCount%101;
 		logInfo("Battery level %u%", batteryLevel);
 		//! si nivel de bateria baja, guardar en flash.
-		
-		if(batteryLevel < SAVE_BATTERY_LEVEL || bypassSleep){
-			bypassSleep = false;
+
+		if (batteryLevel < SAVE_BATTERY_LEVEL || savePulseFlag)
+		{
+			savePulseFlag = false;
 			savePulseCount(pulseCount);
 		}
-		
+
 		fsm = APP_FSM_PREPARE_PAYLOAD;
 		break;
 	}
@@ -543,6 +569,7 @@ void EES34_appTask(void)
 				logInfo("Slept OK, woken-up!\r\n");
 				if (timeSlept > ((period - 4)) * 1000 || bypassSleep)
 				{
+					bypassSleep = false;
 					timeSlept = 0;
 					fsm = APP_FSM_JOIN;
 				}
@@ -698,7 +725,7 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		else if (period > 4294965) // periodo mayor a (2^32)/1000
 			period = 42949671;
 		logDebug("Period: %lu seconds", period);
-		
+
 		savePeriod(period);
 		break;
 	}
@@ -715,7 +742,7 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		receivedPulses = receivedPulses << 8;
 		receivedPulses |= rxBuffer[4];
 		logDebug("Pulse count: %lu", receivedPulses);
-		
+
 		clearPulseCount();
 		savePulseCount(receivedPulses);
 		pulseCount = receivedPulses;
@@ -725,7 +752,3 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		break;
 	}
 }
-
-
-
-
