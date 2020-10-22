@@ -145,19 +145,19 @@ void extintConfigure(void)
 	logTrace("Inicializando Interrupciones\r\n");
 	struct extint_chan_conf pulseConf;
 	extint_chan_get_config_defaults(&pulseConf);
-	pulseConf.gpio_pin = PIN_PA16;
-	pulseConf.gpio_pin_mux = MUX_PA16A_EIC_EXTINT0;
+	pulseConf.gpio_pin = PIN_PA17;
+	pulseConf.gpio_pin_mux = MUX_PA17A_EIC_EXTINT1;
 	pulseConf.gpio_pin_pull = EXTINT_PULL_UP; // quitar pullup al conectar el shield
 	pulseConf.detection_criteria = EXTINT_DETECT_FALLING;
 	pulseConf.filter_input_signal = true;
 	pulseConf.enable_async_edge_detection = false;
-	extint_chan_set_config(0, &pulseConf);
-	extint_register_callback(pulseCallback, 0, EXTINT_CALLBACK_TYPE_DETECT);
-	extint_chan_enable_callback(0, EXTINT_CALLBACK_TYPE_DETECT);
+	extint_chan_set_config(1, &pulseConf);
+	extint_register_callback(pulseCallback, 1, EXTINT_CALLBACK_TYPE_DETECT);
+	extint_chan_enable_callback(1, EXTINT_CALLBACK_TYPE_DETECT);
 
-	while (extint_chan_is_detected(0))
+	while (extint_chan_is_detected(1))
 	{
-		extint_chan_clear_detected(0);
+		extint_chan_clear_detected(1);
 	}
 
 	struct extint_chan_conf bouttonConf;
