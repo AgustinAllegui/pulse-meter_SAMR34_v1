@@ -122,24 +122,20 @@ void EES34_exitLowPower(const uint32_t slept)
 	logDebug("Time slept in total: %lu ms", timeSlept);
 }
 
-#define IRQ_PIN PIN_PA08
-#define IRQ_MUX MUX_PA08A_EIC_NMI
-#define IRQ_CHAN 0
 
 bool bypassSleep = false;
 bool savePulseFlag = false;
 // despertar del sleep si se presiona el boton
-void extintCallback(void)
+void buttonCallback(void)
 {
 	bypassSleep = true;
 	savePulseFlag = true;
 	PMM_Wakeup();
 }
 
-void NMI_Handler(void)
+void pulseCallback(void)
 {
 	pulseCount++;
-	extint_nmi_clear_detected(IRQ_CHAN);
 	PMM_Wakeup();
 	logTrace("Pulse");
 }
@@ -147,33 +143,33 @@ void NMI_Handler(void)
 void extintConfigure(void)
 {
 	logTrace("Inicializando Interrupciones\r\n");
-	struct extint_nmi_conf chanConf;
-	extint_nmi_get_config_defaults(&chanConf);
-	chanConf.gpio_pin = IRQ_PIN;
-	chanConf.gpio_pin_mux = IRQ_MUX;
-	chanConf.gpio_pin_pull = EXTINT_PULL_UP;
-	chanConf.detection_criteria = EXTINT_DETECT_FALLING;
-	chanConf.filter_input_signal = true;
-	chanConf.enable_async_edge_detection = false;
-	extint_nmi_set_config(IRQ_CHAN, &chanConf);
-	//extint_register_callback(extintCallback, IRQ_CHAN, EXTINT_CALLBACK_TYPE_DETECT);
-	extint_chan_enable_callback(IRQ_CHAN, EXTINT_CALLBACK_TYPE_DETECT);
+	struct extint_chan_conf pulseConf;
+	extint_chan_get_config_defaults(&pulseConf);
+	pulseConf.gpio_pin = PIN_PA16;
+	pulseConf.gpio_pin_mux = MUX_PA16A_EIC_EXTINT0;
+	pulseConf.gpio_pin_pull = EXTINT_PULL_UP; // quitar pullup al conectar el shield
+	pulseConf.detection_criteria = EXTINT_DETECT_FALLING;
+	pulseConf.filter_input_signal = true;
+	pulseConf.enable_async_edge_detection = false;
+	extint_chan_set_config(0, &pulseConf);
+	extint_register_callback(pulseCallback, 0, EXTINT_CALLBACK_TYPE_DETECT);
+	extint_chan_enable_callback(0, EXTINT_CALLBACK_TYPE_DETECT);
 
-	while (extint_nmi_is_detected(IRQ_CHAN))
+	while (extint_chan_is_detected(0))
 	{
-		extint_nmi_clear_detected(IRQ_CHAN);
+		extint_chan_clear_detected(0);
 	}
 
 	struct extint_chan_conf bouttonConf;
 	extint_chan_get_config_defaults(&bouttonConf);
 	bouttonConf.gpio_pin = PIN_PA27;
 	bouttonConf.gpio_pin_mux = MUX_PA27A_EIC_EXTINT15;
-	bouttonConf.gpio_pin_pull = EXTINT_PULL_UP; // quitar el pullup cuando se use el shield
+	bouttonConf.gpio_pin_pull = EXTINT_PULL_NONE;
 	bouttonConf.detection_criteria = EXTINT_DETECT_FALLING;
 	bouttonConf.filter_input_signal = true;
 	bouttonConf.enable_async_edge_detection = false;
 	extint_chan_set_config(15, &bouttonConf);
-	extint_register_callback(extintCallback, 15, EXTINT_CALLBACK_TYPE_DETECT);
+	extint_register_callback(buttonCallback, 15, EXTINT_CALLBACK_TYPE_DETECT);
 	extint_chan_enable_callback(15, EXTINT_CALLBACK_TYPE_DETECT);
 
 	while (extint_chan_is_detected(15))
