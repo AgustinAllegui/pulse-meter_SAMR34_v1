@@ -168,7 +168,7 @@ void extintConfigure(void)
 	extint_chan_get_config_defaults(&bouttonConf);
 	bouttonConf.gpio_pin = PIN_PA27;
 	bouttonConf.gpio_pin_mux = MUX_PA27A_EIC_EXTINT15;
-	bouttonConf.gpio_pin_pull = EXTINT_PULL_UP;
+	bouttonConf.gpio_pin_pull = EXTINT_PULL_UP; // quitar el pullup cuando se use el shield
 	bouttonConf.detection_criteria = EXTINT_DETECT_FALLING;
 	bouttonConf.filter_input_signal = true;
 	bouttonConf.enable_async_edge_detection = false;

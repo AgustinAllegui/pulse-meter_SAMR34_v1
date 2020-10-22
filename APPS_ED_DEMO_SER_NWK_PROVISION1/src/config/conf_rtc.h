@@ -41,6 +41,6 @@
 /** Select RTC clock. Use 1.024kHz from 32kHz internal ULP oscillator(OSCULP32K)
  *  for RTC clock.
  */
-#  define RTC_CLOCK_SOURCE    RTC_CLOCK_SELECTION_XOSC32K
+#  define RTC_CLOCK_SOURCE    RTC_CLOCK_SELECTION_ULP32K
 
 #endif

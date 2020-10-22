@@ -62,7 +62,7 @@
 #  define CONF_CLOCK_XOSC_RUN_IN_STANDBY          false
 
 /* SYSTEM_CLOCK_SOURCE_XOSC32K configuration - External 32KHz crystal/clock oscillator */
-#  define CONF_CLOCK_XOSC32K_ENABLE               true
+#  define CONF_CLOCK_XOSC32K_ENABLE               false
 #  define CONF_CLOCK_XOSC32K_EXTERNAL_CRYSTAL     SYSTEM_CLOCK_EXTERNAL_CRYSTAL
 #  define CONF_CLOCK_XOSC32K_STARTUP_TIME         SYSTEM_XOSC32K_STARTUP_65536
 #  define CONF_CLOCK_XOSC32K_ENABLE_1KHZ_OUPUT    false
