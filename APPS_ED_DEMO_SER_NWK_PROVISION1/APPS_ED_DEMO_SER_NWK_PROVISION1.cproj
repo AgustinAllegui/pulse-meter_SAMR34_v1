@@ -1892,6 +1892,9 @@
     <Compile Include="src\ASF\thirdparty\wireless\services\nvm\sam0\sam_nvm.c">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="src\config\conf_promatix.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="src\config\conf_test.h">
       <SubType>compile</SubType>
     </Compile>

@@ -7,6 +7,7 @@
 #include "..\eer34.h"
 #include "inc/logMacros.h"
 #include "inc/EER34_nvm.h"
+#include "conf_promatix.h"
 
 #include "pmm.h"
 #include "radio_driver_hal.h"
@@ -150,7 +151,8 @@ void extintConfigure(void)
 	extint_chan_get_config_defaults(&pulseConf);
 	pulseConf.gpio_pin = PIN_PA17;
 	pulseConf.gpio_pin_mux = MUX_PA17A_EIC_EXTINT1;
-	pulseConf.gpio_pin_pull = EXTINT_PULL_UP; // quitar pullup al conectar el shield
+	//pulseConf.gpio_pin_pull = EXTINT_PULL_UP; // quitar pullup al conectar el shield
+	pulseConf.gpio_pin_pull = EXTINT_PULL_NONE;
 	pulseConf.detection_criteria = EXTINT_DETECT_FALLING;
 	pulseConf.filter_input_signal = true;
 	pulseConf.enable_async_edge_detection = false;
@@ -226,10 +228,10 @@ void EES34_appInit(void)
 
 	static volatile int res;
 
-	uint8_t devEuix[] = {0x00, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02};
-	uint8_t appEuix[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
-	uint8_t appKeyx[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
-	uint8_t frequencySubBand = 2;
+	uint8_t devEuix[] = PROMATIX_DEV_EUI;
+	uint8_t appEuix[] = PROMATIX_APP_EUI;
+	uint8_t appKeyx[] = PROMATIX_APP_KEY;
+	uint8_t frequencySubBand = PROMATIX_SUB_BAND;
 
 	logWarning("-----------------------------------");
 	logWarning("EESAMR34");
@@ -657,8 +659,8 @@ uint8_t getBatteryLevel(const uint16_t halfVoltage)
 	//const uint16_t maxLevel = 2500; // medicion para 4.2v
 
 	// Sensado modificado para usar referencia interna 1v
-	const uint16_t minLevel = 2667; // medicion para 3.3v
-	const uint16_t maxLevel = 4001; // medicion para 4.2v
+	const uint16_t minLevel = 3143; // medicion para 3.3v
+	const uint16_t maxLevel = 3765; // medicion para 4.2v
 
 	float percentage = (halfVoltage - minLevel);
 	percentage = percentage / (maxLevel - minLevel);

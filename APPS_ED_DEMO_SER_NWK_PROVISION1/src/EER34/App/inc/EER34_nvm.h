@@ -11,9 +11,9 @@
 
 #include "eeprom.h"
 #include "logMacros.h"
+#include "conf_promatix.h"
 
-//#define DEFAULT_PERIOD 1800 // 30 minutos
-#define DEFAULT_PERIOD 60 // 60 segundos
+#define DEFAULT_PERIOD PROMATIX_INITIAL_PERIOD
 
 #define PERIOD_EEPROM_PAGE 0
 #define PULSE_COUNT_FIRST_EEPROM_PAGE 2
