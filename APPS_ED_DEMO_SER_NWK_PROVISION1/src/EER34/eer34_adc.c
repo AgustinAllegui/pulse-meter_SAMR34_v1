@@ -22,8 +22,8 @@ void EER34_Adc_startAdc ( void )
 	
 	adc_get_config_defaults(&config_adc);
 	
-	config_adc.positive_input = ADC_POSITIVE_INPUT_PIN6;
-	config_adc.reference = ADC_REFERENCE_INTVCC2;
+	config_adc.positive_input = ADC_POSITIVE_INPUT_PIN10;
+	//config_adc.reference = ADC_REFERENCE_INTVCC2;
 	
 	adc_init   ( &adc_instance, ADC , &config_adc);
 	adc_enable ( &adc_instance );

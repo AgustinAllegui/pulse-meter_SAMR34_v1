@@ -322,8 +322,6 @@ int EER34_tx(EER34_txMode_t mode, int port, uint8_t *data, int len)
 #ifdef CONF_PMM_ENABLE
 static void appWakeupCallback(uint32_t sleptDuration)
 {
-	HAL_Radio_resources_init();
-	HAL_TCXOPowerOn();
 	sio2host_init();
 	EES34_exitLowPower(sleptDuration);
 }
@@ -349,12 +347,8 @@ int EER34_sleep(uint32_t time)
 	{
 		EES34_enterLowPower();
 		sio2host_deinit();
-		HAL_RadioDeInit();
-		HAL_TCXOPowerOff();
 		if (PMM_SLEEP_REQ_DENIED == PMM_Sleep(&sleepReq))
 		{
-			HAL_Radio_resources_init();
-			HAL_TCXOPowerOn();
 			sio2host_init();
 			EES34_exitLowPower(0);
 			return 0;

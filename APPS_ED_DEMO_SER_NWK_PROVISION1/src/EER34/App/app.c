@@ -9,13 +9,14 @@
 #include "inc/EER34_nvm.h"
 
 #include "pmm.h"
+#include "radio_driver_hal.h"
 
 #include "EER34_gpio.h"
 #include "EER34_adc.h"
 #include "EER34_spi.h"
 #include "EER34_i2c.h"
 
-#define SAVE_BATTERY_LEVEL 50
+#define SAVE_BATTERY_LEVEL 30
 
 // Prototipos de funciones
 
@@ -45,7 +46,9 @@ static enum {
 	APP_FSM_TX,
 	APP_FSM_TX_WAIT,
 	APP_FSM_TX_DONE,
+	APP_FSM_PRE_SLEEP,
 	APP_FSM_SLEEP,
+	APP_FSM_POST_SLEEP,
 } fsm;
 
 static char line[256];
@@ -507,7 +510,7 @@ void EES34_appTask(void)
 		else
 		{
 			timer1 = 50;
-			fsm = APP_FSM_SLEEP;
+			fsm = APP_FSM_PRE_SLEEP;
 		}
 		break;
 	}
@@ -547,6 +550,15 @@ void EES34_appTask(void)
 		logTrace("TX DONE");
 		txAttemptCount = 0;
 		timer1 = 50;
+		fsm = APP_FSM_PRE_SLEEP;
+		break;
+	}
+	case APP_FSM_PRE_SLEEP:
+	{
+		// deinit radio
+		logTrace("Deinit Radio");
+		HAL_RadioDeInit();
+		HAL_TCXOPowerOff();
 		fsm = APP_FSM_SLEEP;
 		break;
 	}
@@ -567,7 +579,7 @@ void EES34_appTask(void)
 				{
 					bypassSleep = false;
 					timeSlept = 0;
-					fsm = APP_FSM_JOIN;
+					fsm = APP_FSM_POST_SLEEP;
 				}
 			}
 			else
@@ -583,6 +595,16 @@ void EES34_appTask(void)
 
 			joinAttempts = 8;
 		}
+		break;
+	}
+	
+	case APP_FSM_POST_SLEEP:
+	{
+		// Init radio
+		logTrace("Init radio");
+		HAL_Radio_resources_init();
+		HAL_TCXOPowerOn();
+		fsm = APP_FSM_JOIN;
 		break;
 	}
 
@@ -631,8 +653,12 @@ void EES34_appResetCallback(unsigned int rcause)
  */
 uint8_t getBatteryLevel(const uint16_t halfVoltage)
 {
-	const uint16_t minLevel = 2000; // medicion para 3.3v
-	const uint16_t maxLevel = 2500; // medicion para 4.2v
+	//const uint16_t minLevel = 2000; // medicion para 3.3v
+	//const uint16_t maxLevel = 2500; // medicion para 4.2v
+
+	// Sensado modificado para usar referencia interna 1v
+	const uint16_t minLevel = 2667; // medicion para 3.3v
+	const uint16_t maxLevel = 4001; // medicion para 4.2v
 
 	float percentage = (halfVoltage - minLevel);
 	percentage = percentage / (maxLevel - minLevel);
