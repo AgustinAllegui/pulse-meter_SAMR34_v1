@@ -24,6 +24,7 @@
 uint8_t getBatteryLevel(const uint16_t halfVoltage);
 void usbParser(const int len);
 void payloadParser(uint8_t *rxBuffer, const int len);
+uint32_t getTimeToNext();
 
 // Private variables
 
@@ -35,8 +36,11 @@ unsigned char sendBuffer[SEND_BUFFER_LENGTH]; // buffer para enviar
 uint8_t payloadLength = SEND_BUFFER_LENGTH;
 volatile uint32_t pulseCount = 0;
 uint8_t batteryLevel = 100;
-uint32_t period = 30;
-//uint32_t period = 3600;
+
+uint8_t startHour = PROMATIX_START_HOUR;
+uint8_t timesPerDay = PROMATIX_TIMES_PER_DAY;
+uint32_t syncDelay = 0;
+
 
 static enum {
 	CLOCK_NOT_SYNCED = 0,
@@ -308,10 +312,14 @@ void EES34_appInit(void)
 	logTrace("Initializing EEPROM");
 	configure_eeprom();
 
-	period = getSavedPeriod();
+	uint32_t period = getSavedPeriod();
+	timesPerDay = period & 0x000000FF;
+	period = period >> 8;
+	startHour = period & 0x000000FF;
 	pulseCount = getSavedPulseCount();
 
-	logInfo("Period: %lu", period);
+	logInfo("Start hour: %u", startHour);
+	logInfo("Times per day: %u", timesPerDay);
 	logInfo("Pulses counted: %lu", pulseCount);
 }
 
@@ -479,8 +487,6 @@ void EES34_appTask(void)
 				payloadLength = SEND_BUFFER_LENGTH;
 				sendBuffer[6] |= 0x01 << 1;	
 			}
-				
-			
 
 #if LOG_LEVEL >= DEBUG_LEVEL
 			printf("[DEBUG] Payload to be send: [ ");
@@ -493,8 +499,7 @@ void EES34_appTask(void)
 
 			fsm = APP_FSM_TX;
 		}
-		else
-		{
+		else{
 			timer1 = 50;
 			fsm = APP_FSM_PRE_SLEEP;
 		}
@@ -509,20 +514,15 @@ void EES34_appTask(void)
 				txAttemptCount++;
 				logTrace("TX");
 				logInfo("Attempt %u to send", txAttemptCount);
-				if (EER34_tx(EER34_TXMODE_UNCONF, 1, sendBuffer, payloadLength))
-				{
+				if (EER34_tx(EER34_TXMODE_UNCONF, 1, sendBuffer, payloadLength)){
 					logInfo("Transmitting");
 					fsm = APP_FSM_TX_WAIT;
-				}
-				else
-				{
+				}else{
 					logInfo("TX failed");
 					timer1 = 50;
 				}
 			}
-		}
-		else
-		{
+		}else{
 			fsm = APP_FSM_TX_DONE;
 		}
 		break;
@@ -559,20 +559,18 @@ void EES34_appTask(void)
 			logDebug("Tiempo despierto %lu", awakeTimer / 100);
 			//logDebug("Tiempo desde sleep %lu", US_TO_MS(SLEEP_TICKS_TO_US(SleepTimerGetElapsedTime())));
 
-			uint32_t timeToSleep = (period * 1000) - timeSlept - awakeTimer * 10;
+			uint32_t timeToSleep = (getTimeToNext() * 1000) - timeSlept - awakeTimer * 10;
 			logInfo("About to sleep %lu ms", timeToSleep);
 			if (EER34_sleep(timeToSleep))
 			{
 				logInfo("Slept OK, woken-up!\r\n");
-				if (timeSlept > ((period - 4)) * 1000 || bypassSleep)
+				if (timeSlept > ((getTimeToNext() - 4)) * 1000 || bypassSleep)
 				{
 					bypassSleep = false;
 					timeSlept = 0;
 					fsm = APP_FSM_POST_SLEEP;
 				}
-			}
-			else
-			{
+			}else{
 				logError("Sleep failed\r\n");
 				timer1 = 50;
 			}
@@ -590,6 +588,9 @@ void EES34_appTask(void)
 	case APP_FSM_POST_SLEEP:
 	{
 		// Init radio
+		if(syncStatus == CLOCK_SYNCING)
+			syncStatus = CLOCK_SYNCED;
+			
 		logTrace("Init radio");
 		HAL_Radio_resources_init();
 		HAL_TCXOPowerOn();
@@ -722,21 +723,13 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		if (len < 3)
 			break;
 		logInfo("Changing period");
-		uint32_t receivedPeriod = rxBuffer[1];
-		receivedPeriod = receivedPeriod << 8;
-		receivedPeriod |= rxBuffer[2];
-		receivedPeriod = receivedPeriod << 8;
-		receivedPeriod |= rxBuffer[3];
-		receivedPeriod = receivedPeriod << 8;
-		receivedPeriod |= rxBuffer[4];
-
-		period = receivedPeriod;
-		if (period < 30)
-			period = 30;
-		else if (period > 4294965) // periodo mayor a (2^32)/1000
-			period = 42949671;
-		logDebug("Period: %lu seconds", period);
-
+		startHour = rxBuffer[1];
+		timesPerDay = rxBuffer[2];
+		
+		uint32_t period = startHour;
+		period = period << 8;
+		period |= timesPerDay;
+		
 		savePeriod(period);
 		break;
 	}
@@ -777,7 +770,32 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		savePulseCount(pulseCount);
 		break;
 	}
+	case 'S':
+	{
+		if(len < 3)
+			break;
+		logInfo("Setting time: %02u:%02u", rxBuffer[1], rxBuffer[2]);
+		syncStatus = CLOCK_SYNCING;
+		
+		uint8_t minutesLeft = 60 - rxBuffer[2];
+		uint8_t hoursLeft = 47 - (rxBuffer[1] - startHour);
+		hoursLeft = hoursLeft % 24;
+		
+		syncDelay = hoursLeft*3600 + minutesLeft*60;
+		
+		syncDelay = syncDelay % (24*3600/timesPerDay);
+		
+	}
 	default:
 		break;
 	}
+}
+
+uint32_t getTimeToNext()
+{
+	if(syncStatus == CLOCK_SYNCING)
+		return syncDelay;
+	
+	return (24*3600/timesPerDay);
+	
 }
