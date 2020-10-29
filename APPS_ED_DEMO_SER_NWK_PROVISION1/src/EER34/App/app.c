@@ -27,7 +27,8 @@ void payloadParser(uint8_t *rxBuffer, const int len);
 
 // Private variables
 
-uint32_t timer1; // Para EER34_tickCallback
+uint32_t timer1;	 // Para EER34_tickCallback
+uint32_t awakeTimer; // tiempo despierto (1 = 10ms)
 
 #define SEND_BUFFER_LENGTH 6				  // (1 (mnemonico) + 4 (pulseCount)  + 1 (% bateria))
 unsigned char sendBuffer[SEND_BUFFER_LENGTH]; // buffer para enviar
@@ -105,7 +106,6 @@ void EES34_enterLowPower(void)
 {
 	// Hay que detener el tick sino no entra en bajo consumo
 	EER34_tickStop();
-	
 }
 
 /** 
@@ -120,12 +120,12 @@ uint32_t timeSlept = 0;
 void EES34_exitLowPower(const uint32_t slept)
 {
 	// Vuelve a enceder el tick que lo apago al entrar en bajo consumo
-		EER34_tickStart(10);
+	EER34_tickStart(10);
+	awakeTimer = 0;
 	logInfo("Time slept: %lu ms", slept);
 	timeSlept += slept;
 	logDebug("Time slept in total: %lu ms", timeSlept);
 }
-
 
 bool bypassSleep = false;
 bool savePulseFlag = false;
@@ -198,13 +198,15 @@ static void set_low_active_power(void)
 	osc16m_conf.run_in_standby = CONF_CLOCK_OSC16M_RUN_IN_STANDBY;
 	system_clock_source_osc16m_set_config(&osc16m_conf);
 	system_clock_source_enable(SYSTEM_CLOCK_SOURCE_OSC16M);
-	while(!system_clock_source_is_ready(SYSTEM_CLOCK_SOURCE_OSC16M));
+	while (!system_clock_source_is_ready(SYSTEM_CLOCK_SOURCE_OSC16M))
+		;
 
 	/* Select OSC16M as mainclock */
 	system_gclk_gen_get_config_defaults(&gclk_conf);
 	gclk_conf.source_clock = SYSTEM_CLOCK_SOURCE_OSC16M;
 	system_gclk_gen_set_config(GCLK_GENERATOR_0, &gclk_conf);
-	if (CONF_CLOCK_OSC16M_ON_DEMAND) {
+	if (CONF_CLOCK_OSC16M_ON_DEMAND)
+	{
 		OSCCTRL->OSC16MCTRL.reg |= OSCCTRL_OSC16MCTRL_ONDEMAND;
 	}
 
@@ -223,8 +225,6 @@ void EES34_appInit(void)
 
 	// /* Scaling down clock frequency and then Scaling down the performance level */
 	set_low_active_power();
-
-	
 
 	static volatile int res;
 
@@ -284,8 +284,6 @@ void EES34_appInit(void)
 	// recover count
 	pulseCount = 0;
 
-
-
 	//============================================================
 
 	EER34_getLineInit(line, sizeof(line));
@@ -307,10 +305,10 @@ void EES34_appInit(void)
  */
 void EER34_tickCallback(void)
 {
+	awakeTimer++;
 	if (timer1)
 		timer1--;
 }
-
 
 /** 
  *	Task de la aplicacion
@@ -513,7 +511,10 @@ void EES34_appTask(void)
 			logTrace("SLEEP");
 			// calcular tiempo a dormir
 
-			uint32_t timeToSleep = (period * 1000) - timeSlept;
+			logDebug("Tiempo despierto %lu", awakeTimer / 100);
+			//logDebug("Tiempo desde sleep %lu", US_TO_MS(SLEEP_TICKS_TO_US(SleepTimerGetElapsedTime())));
+
+			uint32_t timeToSleep = (period * 1000) - timeSlept - awakeTimer * 10;
 			logInfo("About to sleep %lu ms", timeToSleep);
 			if (EER34_sleep(timeToSleep))
 			{
@@ -540,7 +541,7 @@ void EES34_appTask(void)
 		}
 		break;
 	}
-	
+
 	case APP_FSM_POST_SLEEP:
 	{
 		// Init radio
