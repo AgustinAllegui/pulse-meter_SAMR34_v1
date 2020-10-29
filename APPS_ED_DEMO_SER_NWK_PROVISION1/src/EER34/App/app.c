@@ -30,12 +30,19 @@ void payloadParser(uint8_t *rxBuffer, const int len);
 uint32_t timer1;	 // Para EER34_tickCallback
 uint32_t awakeTimer; // tiempo despierto (1 = 10ms)
 
-#define SEND_BUFFER_LENGTH 6				  // (1 (mnemonico) + 4 (pulseCount)  + 1 (% bateria))
+#define SEND_BUFFER_LENGTH 7				  // (1 (mnemonico) + 4 (pulseCount)  + 1 (% bateria) + 1 (Alerts))
 unsigned char sendBuffer[SEND_BUFFER_LENGTH]; // buffer para enviar
+uint8_t payloadLength = SEND_BUFFER_LENGTH;
 volatile uint32_t pulseCount = 0;
 uint8_t batteryLevel = 100;
 uint32_t period = 30;
 //uint32_t period = 3600;
+
+static enum {
+	CLOCK_NOT_SYNCED = 0,
+	CLOCK_SYNCING,
+	CLOCK_SYNCED,
+} syncStatus;
 
 static enum {
 	APP_FSM_INIT = 0,
@@ -272,6 +279,8 @@ void EES34_appInit(void)
 
 	// Arranca tick de 10ms
 	EER34_tickStart(10); // arranca tick de 10ms
+	
+	syncStatus = CLOCK_NOT_SYNCED;
 
 	logInfo("Initialization Done\r\n\r\n");
 
@@ -442,6 +451,7 @@ void EES34_appTask(void)
 		logTrace("Prepare payload");
 		if (isJoined)
 		{
+			payloadLength = SEND_BUFFER_LENGTH - 1;
 			// preparar frame
 			sendBuffer[0] = 'S';
 			uint32_t pulseCountToSend = pulseCount;
@@ -455,10 +465,26 @@ void EES34_appTask(void)
 			sendBuffer[1] = (char)((pulseCountToSend & 0x000000FF));
 
 			sendBuffer[5] = (char)(batteryLevel);
+			
+			sendBuffer[6] = 0x00;
+			if(syncStatus == CLOCK_NOT_SYNCED){
+				logWarning("Clock not synced");
+				sendBuffer[0] = 's';
+				payloadLength = SEND_BUFFER_LENGTH;
+				sendBuffer[6] |= 0x01 << 0;
+			}
+			if(batteryLevel < 25){
+				logWarning("Battery under 25%");
+				sendBuffer[0] = 's';
+				payloadLength = SEND_BUFFER_LENGTH;
+				sendBuffer[6] |= 0x01 << 1;	
+			}
+				
+			
 
 #if LOG_LEVEL >= DEBUG_LEVEL
 			printf("[DEBUG] Payload to be send: [ ");
-			for (int i = 0; i < SEND_BUFFER_LENGTH; i++)
+			for (int i = 0; i < payloadLength; i++)
 			{
 				printf("%02X ", sendBuffer[i]);
 			}
@@ -483,7 +509,7 @@ void EES34_appTask(void)
 				txAttemptCount++;
 				logTrace("TX");
 				logInfo("Attempt %u to send", txAttemptCount);
-				if (EER34_tx(EER34_TXMODE_UNCONF, 1, sendBuffer, SEND_BUFFER_LENGTH))
+				if (EER34_tx(EER34_TXMODE_UNCONF, 1, sendBuffer, payloadLength))
 				{
 					logInfo("Transmitting");
 					fsm = APP_FSM_TX_WAIT;
