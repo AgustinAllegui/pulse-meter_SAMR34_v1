@@ -39,6 +39,7 @@ uint32_t period = 30;
 
 static enum {
 	APP_FSM_INIT = 0,
+	APP_FSM_LED1,
 	APP_FSM_JOIN,
 	APP_FSM_JOINING,
 	APP_FSM_JOIN_ERROR,
@@ -65,7 +66,11 @@ void EER34_statusCallback(EER34_status_t sts, StackRetStatus_t LoraSts)
 	if (sts == EER34_STATUS_JOIN_SUCCSESS)
 	{
 		if (fsm == APP_FSM_JOINING)
+		{
+			EER34_Gpio_digitalWrite(PIN_PA14, true);
+			timer1 = 50;
 			fsm = APP_FSM_JOIN_OK;
+		}
 	}
 	else if (sts == EER34_STATUS_JOIN_ERROR)
 	{
@@ -273,10 +278,11 @@ void EES34_appInit(void)
 	//============================================================
 	// Initialize pins
 
-	//EER34_Gpio_pinMode(PIN_PA14, OUTPUT); // LED 2
+	EER34_Gpio_pinMode(PIN_PA14, OUTPUT); // LED 2
+	//EER34_Gpio_digitalWrite(PIN_PA14, false);
 	//EER34_Gpio_pinMode(PIN_PA07, OUTPUT); // LED 5
 	//#if LOG_LEVEL >= DEBUG_LEVEL
-	//EER34_Gpio_digitalWrite(PIN_PA14, true);
+	
 	//#endif
 
 	// EER34_Gpio_pinMode ( PIN_PA27 , INPUT  );			// SW2 with external pull-up
@@ -336,7 +342,18 @@ void EES34_appTask(void)
 	{
 		logTrace("INIT");
 		joinAttempts = 32;
-		fsm = APP_FSM_JOIN;
+		EER34_Gpio_digitalWrite(PIN_PA14, true);
+		timer1 = 50;
+		fsm = APP_FSM_LED1;
+		break;
+	}
+	case APP_FSM_LED1:
+	{
+		if(timer1 == 0){
+			logTrace("Apagar led");
+			EER34_Gpio_digitalWrite(PIN_PA14, false);
+			fsm = APP_FSM_JOIN;
+		}
 		break;
 	}
 	case APP_FSM_JOIN_ERROR:
@@ -371,10 +388,12 @@ void EES34_appTask(void)
 	}
 	case APP_FSM_JOIN_OK:
 	{
-		logInfo("Join ok");
-		isJoined = true;
-		//EER34_Gpio_digitalWrite(PIN_PA14, false);
-		fsm = APP_FSM_SAVE_COUNT;
+		if(!timer1){
+			logInfo("Join ok");
+			isJoined = true;
+			EER34_Gpio_digitalWrite(PIN_PA14, false);
+			fsm = APP_FSM_SAVE_COUNT;	
+		}
 		break;
 	}
 	case APP_FSM_SAVE_COUNT:
@@ -712,6 +731,24 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		clearPulseCount();
 		savePulseCount(receivedPulses);
 		pulseCount = receivedPulses;
+		break;
+	}
+	case 'A':
+	{
+		if (len < 5)
+			break;
+		logInfo("Manualy add pulses to count");
+		uint32_t receivedPulses = rxBuffer[1];
+		receivedPulses = receivedPulses << 8;
+		receivedPulses |= rxBuffer[2];
+		receivedPulses = receivedPulses << 8;
+		receivedPulses |= rxBuffer[3];
+		receivedPulses = receivedPulses << 8;
+		receivedPulses |= rxBuffer[4];
+		logDebug("Received pules: %lu", receivedPulses);
+		pulseCount += receivedPulses;
+		clearPulseCount();
+		savePulseCount(pulseCount);
 		break;
 	}
 	default:
