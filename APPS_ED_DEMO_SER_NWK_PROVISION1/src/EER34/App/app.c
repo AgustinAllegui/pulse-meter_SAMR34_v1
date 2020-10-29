@@ -149,20 +149,20 @@ void extintConfigure(void)
 	logTrace("Inicializando Interrupciones\r\n");
 	struct extint_chan_conf pulseConf;
 	extint_chan_get_config_defaults(&pulseConf);
-	pulseConf.gpio_pin = PIN_PA17;
-	pulseConf.gpio_pin_mux = MUX_PA17A_EIC_EXTINT1;
+	pulseConf.gpio_pin = PIN_PB22;
+	pulseConf.gpio_pin_mux = MUX_PB22A_EIC_EXTINT6;
 	//pulseConf.gpio_pin_pull = EXTINT_PULL_UP; // quitar pullup al conectar el shield
 	pulseConf.gpio_pin_pull = EXTINT_PULL_NONE;
 	pulseConf.detection_criteria = EXTINT_DETECT_FALLING;
 	pulseConf.filter_input_signal = true;
 	pulseConf.enable_async_edge_detection = false;
-	extint_chan_set_config(1, &pulseConf);
-	extint_register_callback(pulseCallback, 1, EXTINT_CALLBACK_TYPE_DETECT);
-	extint_chan_enable_callback(1, EXTINT_CALLBACK_TYPE_DETECT);
+	extint_chan_set_config(6, &pulseConf);
+	extint_register_callback(pulseCallback, 6, EXTINT_CALLBACK_TYPE_DETECT);
+	extint_chan_enable_callback(6, EXTINT_CALLBACK_TYPE_DETECT);
 
-	while (extint_chan_is_detected(1))
+	while (extint_chan_is_detected(6))
 	{
-		extint_chan_clear_detected(1);
+		extint_chan_clear_detected(6);
 	}
 
 	struct extint_chan_conf bouttonConf;
@@ -284,14 +284,7 @@ void EES34_appInit(void)
 	// recover count
 	pulseCount = 0;
 
-	// Initialize adc
-	//EER34_Adc_startAdc();
 
-	//	// Inilialize SPI
-	//EER34_configureSpiMaster(100000, SPI_DATA_ORDER_MSB, SPI_TRANSFER_MODE_0);
-
-	// Initialize I2C
-	//EER34_I2C_begin();
 
 	//============================================================
 
@@ -318,58 +311,6 @@ void EER34_tickCallback(void)
 		timer1--;
 }
 
-//static void ToggleLed2(void)
-//{
-//static bool led2 = 0;
-//
-//led2 = led2 ^ 1;
-//
-//if (led2)
-//EER34_Gpio_digitalWrite(PIN_PA14, true);
-//else
-//EER34_Gpio_digitalWrite(PIN_PA14, false);
-//}
-
-//static void ToggleLed5(void)
-//{
-//static bool led5 = 0;
-//
-//led5 = led5 ^ 1;
-//
-//if (led5)
-//EER34_Gpio_digitalWrite(PIN_PA07, true);
-//else
-//EER34_Gpio_digitalWrite(PIN_PA07, false);
-//}
-
-//static void TestSPI(void)
-//{
-//uint8_t buffer_spi_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
-//uint8_t buffer_spi_rx[20] = {0x00};
-//
-//memcpy_ram2ram(buffer_spi_rx, buffer_spi_tx, 20);
-//
-//EER34_spiStartTransaction();
-//EER34_spiTransferBuffer(buffer_spi_tx, sizeof(buffer_spi_tx));
-//EER34_spiEndTransaction();
-//
-//if (memcmp_ram2ram(buffer_spi_tx, buffer_spi_rx, 20) == 0)
-//{
-//ToggleLed5();
-//}
-//}
-
-//void TestI2C(void)
-//{
-//#define SLAVE_ADDRESS 0x28
-//
-//uint8_t buffer_i2c_tx[20] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13};
-//uint8_t buffer_i2c_rx[20] = {0};
-//
-//EER34_I2C_Write(SLAVE_ADDRESS, buffer_i2c_tx, 20);
-//
-//EER34_I2C_Read(SLAVE_ADDRESS, buffer_i2c_rx, 20);
-//}
 
 /** 
  *	Task de la aplicacion
