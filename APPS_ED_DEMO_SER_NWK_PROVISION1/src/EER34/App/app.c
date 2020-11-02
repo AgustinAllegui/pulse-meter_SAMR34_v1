@@ -37,6 +37,9 @@ uint8_t payloadLength = SEND_BUFFER_LENGTH;
 volatile uint32_t pulseCount = 0;
 uint8_t batteryLevel = 100;
 
+uint8_t daysAfterSync = 0;
+uint8_t messagesInDay = 0;
+
 uint8_t startHour = PROMATIX_START_HOUR;
 uint8_t timesPerDay = PROMATIX_TIMES_PER_DAY;
 uint32_t syncDelay = 0;
@@ -244,7 +247,7 @@ void EES34_appInit(void)
 	// /* Scaling down clock frequency and then Scaling down the performance level */
 	set_low_active_power();
 
-	static volatile int res;
+	//static volatile int res;
 
 	uint8_t devEuix[] = PROMATIX_DEV_EUI;
 	uint8_t appEuix[] = PROMATIX_APP_EUI;
@@ -461,6 +464,14 @@ void EES34_appTask(void)
 		logTrace("Prepare payload");
 		if (isJoined)
 		{
+			messagesInDay++;
+			if(messagesInDay >= timesPerDay){
+				daysAfterSync++;
+				if(daysAfterSync >= PROMATIX_DAYS_TO_SYNC){
+					syncStatus = CLOCK_NOT_SYNCED;
+				}
+			}
+			
 			payloadLength = SEND_BUFFER_LENGTH - 1;
 			// preparar frame
 			sendBuffer[0] = 'S';
