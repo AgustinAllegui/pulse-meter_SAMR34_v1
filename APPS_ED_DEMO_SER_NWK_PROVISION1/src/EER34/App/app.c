@@ -44,6 +44,7 @@ uint32_t syncDelay = 0;
 
 static enum {
 	CLOCK_NOT_SYNCED = 0,
+	CLOCK_WAIT_SYNC,
 	CLOCK_SYNCING,
 	CLOCK_SYNCED,
 } syncStatus;
@@ -150,6 +151,7 @@ void buttonCallback(void)
 {
 	bypassSleep = true;
 	savePulseFlag = true;
+	syncStatus = CLOCK_NOT_SYNCED;
 	PMM_Wakeup();
 }
 
@@ -477,6 +479,7 @@ void EES34_appTask(void)
 			sendBuffer[6] = 0x00;
 			if(syncStatus == CLOCK_NOT_SYNCED){
 				logWarning("Clock not synced");
+				syncStatus = CLOCK_WAIT_SYNC;
 				sendBuffer[0] = 's';
 				payloadLength = SEND_BUFFER_LENGTH;
 				sendBuffer[6] |= 0x01 << 0;
@@ -784,17 +787,38 @@ void payloadParser(uint8_t *rxBuffer, const int len)
 		syncDelay = hoursLeft*3600 + minutesLeft*60;
 		
 		syncDelay = syncDelay % (24*3600/timesPerDay);
+		break;
 		
+	}
+	case 'R':
+	{
+		logInfo("Do sync");
+		syncStatus = CLOCK_NOT_SYNCED;
+		break;
 	}
 	default:
 		break;
 	}
 }
 
+uint8_t syncAttempts = 0;
+
 uint32_t getTimeToNext()
 {
+	logDebug("Get time to sleep");
 	if(syncStatus == CLOCK_SYNCING)
 		return syncDelay;
+		
+	if(syncStatus == CLOCK_WAIT_SYNC){
+		if(syncAttempts < 10){
+			syncAttempts++;
+			bypassSleep = true;
+			return 120;
+		}
+		
+		syncStatus = CLOCK_NOT_SYNCED;
+		syncAttempts = 0;
+	}
 	
 	return (24*3600/timesPerDay);
 	
