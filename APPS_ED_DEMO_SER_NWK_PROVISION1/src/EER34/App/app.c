@@ -17,7 +17,6 @@
 #include "EER34_spi.h"
 #include "EER34_i2c.h"
 
-#define SAVE_BATTERY_LEVEL 30
 
 // Prototipos de funciones
 
@@ -247,7 +246,7 @@ void EES34_appInit(void)
 	// /* Scaling down clock frequency and then Scaling down the performance level */
 	set_low_active_power();
 
-	//static volatile int res;
+	static volatile int res;
 
 	uint8_t devEuix[] = PROMATIX_DEV_EUI;
 	uint8_t appEuix[] = PROMATIX_APP_EUI;
@@ -446,11 +445,13 @@ void EES34_appTask(void)
 		logDebug("ADC read %u", batteryRead);
 
 		batteryLevel = getBatteryLevel(batteryRead);
+		//batteryLevel = batteryRead >> 4;
+		
 		//batteryLevel = pulseCount%101;
 		logInfo("Battery level %u%", batteryLevel);
 		//! si nivel de bateria baja, guardar en flash.
 
-		if (batteryLevel < SAVE_BATTERY_LEVEL || savePulseFlag)
+		if (batteryLevel < PPROMATIX_LOW_BATTERY_LEVEL_SAVE || savePulseFlag)
 		{
 			savePulseFlag = false;
 			savePulseCount(pulseCount);
@@ -488,6 +489,15 @@ void EES34_appTask(void)
 			sendBuffer[5] = (char)(batteryLevel);
 			
 			sendBuffer[6] = 0x00;
+			
+			#if LOG_LEVEL >= WARNING_LEVEL
+			if(syncStatus == CLOCK_SYNCING){
+				logWarning("Clock waiting Sync delay");
+			}else if(syncStatus == CLOCK_WAIT_SYNC){
+				logWarning("Clock waiting sync Response");
+			}
+			#endif
+			
 			if(syncStatus == CLOCK_NOT_SYNCED){
 				logWarning("Clock not synced");
 				syncStatus = CLOCK_WAIT_SYNC;
@@ -495,8 +505,8 @@ void EES34_appTask(void)
 				payloadLength = SEND_BUFFER_LENGTH;
 				sendBuffer[6] |= 0x01 << 0;
 			}
-			if(batteryLevel < 25){
-				logWarning("Battery under 25%");
+			if(batteryLevel < PPROMATIX_LOW_BATTERY_LEVEL_ALERT){
+				logWarning("Battery under %u%",PPROMATIX_LOW_BATTERY_LEVEL_ALERT);
 				sendBuffer[0] = 's';
 				payloadLength = SEND_BUFFER_LENGTH;
 				sendBuffer[6] |= 0x01 << 1;	
@@ -657,12 +667,9 @@ void EES34_appResetCallback(unsigned int rcause)
  */
 uint8_t getBatteryLevel(const uint16_t halfVoltage)
 {
-	//const uint16_t minLevel = 2000; // medicion para 3.3v
-	//const uint16_t maxLevel = 2500; // medicion para 4.2v
-
 	// Sensado modificado para usar referencia interna 1v
-	const uint16_t minLevel = 3143; // medicion para 3.3v
-	const uint16_t maxLevel = 3765; // medicion para 4.2v
+	const uint16_t minLevel = 2700; // medicion para 2,8v
+	const uint16_t maxLevel = 4000; // medicion para 4.2v
 
 	float percentage = (halfVoltage - minLevel);
 	percentage = percentage / (maxLevel - minLevel);
