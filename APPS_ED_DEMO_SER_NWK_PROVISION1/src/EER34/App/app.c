@@ -20,7 +20,7 @@
 
 // Prototipos de funciones
 
-uint8_t getBatteryLevel(const uint16_t halfVoltage);
+uint8_t getBatteryLevel(const uint16_t fractionVoltage);
 void usbParser(const int len);
 void payloadParser(uint8_t *rxBuffer, const int len);
 uint32_t getTimeToNext();
@@ -662,19 +662,32 @@ void EES34_appResetCallback(unsigned int rcause)
 /**
  * @brief Obtener el nivel de bateria a partir de la mitad del voltaje actual.
  * 
- * @param halfVoltage Mitad del voltaje de la bateria.
+ * @param analogRead Lectura de tension de la bateria.
  * @return Nivel de bateria (0 - 100)
+ *
+ * @note: referncia de 1v y tension medida con divisor resistivo de 330K 100K
  */
-uint8_t getBatteryLevel(const uint16_t halfVoltage)
+uint8_t getBatteryLevel(const uint16_t analogRead)
 {
-	// Sensado modificado para usar referencia interna 1v
-	const uint16_t minLevel = 2700; // medicion para 2,8v
-	const uint16_t maxLevel = 4000; // medicion para 4.2v
-
-	float percentage = (halfVoltage - minLevel);
-	percentage = percentage / (maxLevel - minLevel);
-	percentage *= 100;
-
+	float percentage;
+	
+	// puntos de la curva
+	const uint16_t v0 = 2666;	// medicion para 2,8v
+	
+	const uint16_t v1 = 3333;	// medicion para 3,5v
+	const float p1 = 10; // 10%
+	
+	const uint16_t v2 = 3990;	// medicion para 4,2v
+	
+	// calcular segun la curva correcta
+	if(analogRead > v1){
+		percentage = p1+(100-p1)*(analogRead-v1)/(v2-v1);
+	}else{
+		percentage = 0+(p1-0)*(analogRead-v0)/(v1-v0);
+	}
+	
+	
+	// asegurarse de que el porcentaje este en rango
 	if (percentage > 100)
 		percentage = 100;
 	else if (percentage < 0)
