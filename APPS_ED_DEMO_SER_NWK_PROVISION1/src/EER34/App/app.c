@@ -734,10 +734,11 @@ void usbParser(const int len)
 void payloadParser(uint8_t *rxBuffer, const int len)
 {
 	/**	//! Parsear datos recibidos
-	 * [x] Tiempo entre transmisiones
-	 * [ ] ?Hora actual
-	 * [x] Contador de pulsos manual
-	 * [x] Pulsos por unidad
+	 * [x] Tiempo de transmisiones (T).
+	 * [x] Setear manualmente contador (P).
+	 * [x] Agregar pulsos a la cuenta actual (A).
+	 * [x] Respuesta a time request (S).
+	 * [x] Ordenar al nodo que envie un time request (R).
 	 */
 
 	logTrace("payloadParser");
